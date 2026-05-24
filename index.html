@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Carrera Loca</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            background-color: #222;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            border: none;
+            background-color: #222;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="gameCanvas" width="800" height="450"></canvas>
+
+    <script>
+        // Definición de constantes y variables globales
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Tamaño del canvas
+        const WIDTH = 800;
+        const HEIGHT = 450;
+
+        // Variables del juego
+        let game = {
+            score: 0,
+            level: 1,
+            gameOver: false,
+            muted: false,
+            enemySpeed: 5,
+            enemyFrequency: 1000 // Tiempo en ms entre enemigos
+        };
+
+        // Clase Car (Jugador)
+        class Car {
+            constructor() {
+                this.width = 50;
+                this.height = 90;
+                this.x = WIDTH / 2 - this.width / 2;
+                this.y = HEIGHT - this.height - 20;
+                this.speed = 0;
+                this.maxSpeed = 10;
+                this.acceleration = 0.2;
+                this.deceleration = 0.1;
+                this.steering = 0;
+                this.maxSteering = 5;
+                this.color = '#FF0000';
+                this.smoke = [];
+            }
+
+            draw() {
+                // Dibujar el coche
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Dibujar detalles del coche (ventanas, llantas, etc.)
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 5, this.y + 5, 10, 15);
+                ctx.fillRect(this.x + 35, this.y + 5, 10, 15);
+                ctx.fillRect(this.x + 5, this.y + 70, 10, 15);
+                ctx.fillRect(this.x + 35, this.y + 70, 10, 15);
+                ctx.fillStyle = '#FFFF00';
+                ctx.fillRect(this.x + 15, this.y + 15, 20, 10);
+                ctx.fillRect(this.x + 15, this.y + 60, 20, 10);
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(this.x + 10, this.y + 40, 30, 10);
+
+                // Dibujar humo
+                for (let i = 0; i < this.smoke.length; i++) {
+                    let s = this.smoke[i];
+                    ctx.fillStyle = s.color;
+                    ctx.beginPath();
+                    ctx.arc(s.x, s.y, s.size, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            }
+
+            update() {
+                // Actualizar posición
+                this.x += this.steering;
+
+                // Limitar el movimiento dentro de la carretera
+                if (this.x < 0) this.x = 0;
+                if (this.x + this.width > WIDTH) this.x = WIDTH - this.width;
+
+                // Actualizar humo
+                for (let i = 0; i < this.smoke.length; i++) {
+                    let s = this.smoke[i];
+                    s.y -= s.speed;
+                    s.size -= 0.1;
+                    s.speed -= 0.05;
+                    if (s.size <= 0) this.smoke.splice(i, 1);
+                }
+            }
+
+            accelerate() {
+                this.speed += this.acceleration;
+                if (this.speed > this.maxSpeed) this.speed = this.maxSpeed;
+            }
+
+            brake() {
+                this.speed -= this.deceleration;
+                if (this.speed < 0) this.speed = 0;
+            }
+
+            steer(dir) {
+                this.steering += dir * this.maxSteering;
+            }
+
+            addSmoke() {
+                this.smoke.push({
+                    x: this.x + this.width / 2,
+                    y: this.y - 10,
+                    size: Math.random() * 5 + 2,
+                    speed: Math.random() * 2 + 1,
+                    color: `rgba(255, 255, 255, ${Math.random() * 0.5 + 0.2})`
+                });
+            }
+        }
+
+        // Clase EnemyCar
+        class EnemyCar {
+            constructor() {
+                this.width = 50;
+                this.height = 90;
+                this.x = Math.random() * (WIDTH - this.width);
+                this.y = -this.height;
+                this.speed = game.enemySpeed;
+                this.color = `rgb(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)})`;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+
+                // Dibujar detalles del coche enemigo
+                ctx.fillStyle = '#000';
+                ctx.fillRect(this.x + 5, this.y + 5, 10, 15);
+                ctx.fillRect(this.x + 35, this.y + 5, 10, 15);
+                ctx.fillRect(this.x + 5, this.y + 70, 10, 15);
+                ctx.fillRect(this.x + 35, this.y + 70, 10, = '#FFFF00';
+                ctx.fillRect(this.x + 15, this.y + 15, 20, 10);
+                ctx.fillRect(this.x + 15, this.y + 60, 20, 10);
+                ctx.fillStyle = '#0000FF';
+                ctx.fillRect(this.x + 10, this.y + 40, 30, 10);
+            }
+
+            update() {
+                this.y += this.speed;
+            }
+        }
+
+        // Clase Particle
+        class Particle {
+            constructor(x, y, color) {
+                this.x = x;
+                this.y = y;
+                this.color = color;
+                this.size = Math.random() * 5 + 1;
+                this.speedX = Math.random() * 3 - 1.5;
+                this.speedY = Math.random() * 3 - 1.5;
+                this.life = 100;
+            }
+
+            draw() {
+                ctx.fillStyle = this.color;
+                ctx.globalAlpha = this.life / 100;
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1;
+            }
+
+            update() {
+                this.x += this.speedX;
+                this.y += this.speedY;
+                this.life--;
+            }
+        }
+
+        // Clase RoadLine
+        class RoadLine {
+            constructor() {
+                this.width = 10;
+                this.height = 50;
+                this.x = WIDTH / 2 - this.width / 2;
+                this.y = -this.height;
+                this.speed = game.enemySpeed;
+            }
+
+            draw() {
+                ctx.fillStyle = '#FFF';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+
+            update() {
+                this.y += this.speed;
+                if (this.y > HEIGHT) {
+                    this.y = -this.height;
+                }
+            }
+        }
+
+        // Clase Game
+        class Game {
+            constructor() {
+                this.player = new Car();
+                this.enemies = [];
+                this.roadLines = [];
+                this.particles = [];
+                this.lastEnemyTime = 0;
+                this.lastFrameTime = 0;
+                this.distance = 0;
+                this.startCountdown();
+
+                // Inicializar líneas de la carretera
+                for (let i = 0; i < 3; i++) {
+                    this.roadLines.push(new RoadLine());
+                }
+
+                // Iniciar el bucle de juego
+                requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            startCountdown() {
+                let countdown = 3;
+                let countdownInterval = setInterval(() => {
+                    countdown--;
+                    if (countdown <= 0) {
+                        clearInterval(countdownInterval);
+                        this.startGame();
+                    }
+                }, 1000);
+            }
+
+            startGame() {
+                game.gameOver = false;
+                game.score = 0;
+                game.level = 1;
+                game.enemySpeed = 5;
+                game.enemyFrequency = 1000;
+                this.player = new Car();
+                this.enemies = [];
+                this.roadLines = [];
+                this.particles = [];
+
+                // Reiniciar líneas de la carretera
+                for (let i = 0; i < 3; i++) {
+                    this.roadLines.push(new RoadLine());
+                }
+
+                // Iniciar el bucle de juego
+                requestAnimationFrame(this.gameLoop.bind(this));
+            }
+
+            gameLoop(timestamp) {
+                if (!this.lastFrameTime) this.lastFrameTime = timestamp;
+                const deltaTime = timestamp - this.lastFrameTime;
+                this.lastFrameTime = timestamp;
+
+                if (!game.gameOver) {
+                    this.update(deltaTime);
+                    this.draw();
+                    requestAnimationFrame(this.gameLoop.bind(this));
+                } else {
+                    // Mostrar pantalla de game over
+                    this.drawGameOver();
+                }
+            }
+
+            update(deltaTime) {
+                // Actualizar el jugador
+                this.player.update();
+
+                // Actualizar líneas de la carretera
+                for (let i = 0; i < this.roadLines.length; i++) {
+                    this.roadLines[i].update();
+                }
+
+                // Generar enemigos
+                if (Date.now() - this.lastEnemyTime > game.enemyFrequency) {
+                    this.enemies.push(new EnemyCar());
+                    this.lastEnemyTime = Date.now();
+                }
+
+                // Actualizar enemigos
+                for (let i = 0; i < this.enemies.length; i++) {
+                    let enemy = this.enemies[i];
+                    enemy.update();
+
+                    // Eliminar enemigos que salen de la pantalla
+                    if (enemy.y > HEIGHT) {
+                        this.enemies.splice(i, 1);
+                        i--;
+                    }
+
+                    // Colisión con el jugador
+                    if (this.checkCollision(this.player, enemy)) {
+                        this.handleCollision();
+                    }
+                }
+
+                // Actualizar partículas
+                for (let i = 0; i < this.particles.length; i++) {
+                    let p = this.particles[i];
+                    p.update();
+                    if (p.life <= 0) {
+                        this.particles.splice(i, 1);
+                        i--;
+                    }
+                }
+
+                // Incrementar distancia y nivel
+                this.distance += this.player.speed * (deltaTime / 16);
+                game.score = Math.floor(this.distance);
+                if (game.score >= game.level * 1000) {
+                    game.level++;
+                    game.enemySpeed += 2;
+                    game.enemyFrequency = Math.max(200, 1000 - game.level * 100);
+                }
+            }
+
+            draw() {
+                // Limpiar el canvas
+                ctx.clearRect(0, 0, WIDTH, HEIGHT);
+
+                // Dibujar fondo
+                ctx.fillStyle = '#222';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+                // Dibujar líneas de la carretera
+                for (let i = 0; i < this.roadLines.length; i++) {
+                    this.roadLines[i].draw();
+                }
+
+                // Dibujar enemigos
+                for (let i = 0; i < this.enemies.length; i++) {
+                    this.enemies[i].draw();
+                }
+
+                // Dibujar partículas
+                for (let i = 0; i < this.particles.length; i++) {
+                    this.particles[i].draw();
+                }
+
+                // Dibujar jugador
+                this.player.draw();
+
+                // Mostrar información del juego
+                this.drawUI();
+            }
+
+            drawGameOver() {
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
+                ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+                ctx.fillStyle = '#FFF';
+                ctx.font = '48px Arial';
+                ctx.textAlign = 'center';
+                ctx.fillText('GAME OVER', WIDTH / 2, HEIGHT / 2 - 50);
+
+                ctx.font = '24px Arial';
+                ctx.fillText(`Puntuación: ${game.score}`, WIDTH / 2, HEIGHT / 2);
+
+                ctx.font = '20px Arial';
+                ctx.fillText('Presiona R para reiniciar', WIDTH / 2, HEIGHT / 2 + 50);
+            }
+
+            drawUI() {
+                ctx.fillStyle = '#FFF';
+                ctx.font = '20px Arial';
+                ctx.textAlign = 'left';
+                ctx.fillText(`Nivel: ${game.level}`, 20, 30);
+                ctx.fillText(`Puntuación: ${game.score}`, 20, 60);
+            }
+
+            checkCollision(car1, car2) {
+                // Comprobar colisión simple (rectángulos)
+                return car1.x < car2.x + car2.width &&
+                    car1.x + car1.width > car2.x &&
+                    car1.y < car2.y + car2.height &&
+                    car1.y + car1.height > car2.y;
+            }
+
+            handleCollision() {
+                game.gameOver = true;
+                // Crear partículas de colisión
+                for (let i = 0; i < 50; i++) {
+                    this.particles.push(new Particle(
+                        this.player.x + this.player.width / 2,
+                        this.player.y + this.player.height / 2,
+                        `rgb(${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)}, ${Math.floor(Math.random() * 255)})`
+                    ));
+                }
+
+                // Efecto de vibración (no implementado en este ejemplo)
+            }
+
+            // Control del teclado
+            keyDownHandler(e) {
+                switch (e.key) {
+                    case 'ArrowUp':
+                        this.player.accelerate();
+                        break;
+                    case 'ArrowDown':
+                        this.player.brake();
+                        break;
+                    case 'ArrowLeft':
+                        this.player.steer(-1);
+                        break;
+                    case 'ArrowRight':
+                        this.player.steer(1);
+                        break;
+                    case 'r':
+                        if (game.gameOver) {
+                            this.startGame();
+                        }
+                        break;
+                }
+            }
+
+            keyUpHandler(e) {
+                switch (e.key) {
+                    case 'ArrowUp':
+                    case 'ArrowDown':
+                        this.player.speed = 0;
+                        break;
+                    case 'ArrowLeft':
+                    case 'ArrowRight':
+                        this.player.steering = 0;
+                        break;
+                }
+            }
+
+            // Control táctil para móviles
+            touchHandler(e) {
+                if (game.gameOver) return;
+
+                e.preventDefault();
+                const rect = canvas.getBoundingClientRect();
+                const touchX = e.touches[0].clientX - rect.left;
+                const touchY = e.touches[0].clientY - rect.top;
+
+                // Mover el coche hacia el toque
+                this.player.x = touchX - this.player.width / 2;
+                // Limitar el movimiento dentro de la carretera
+                if (this.player.x < 0) this.player.x = 0;
+                if (this.player.x + this.player.width > WIDTH) this.player.x = WIDTH - this.player.width;
+            }
+        }
+
+        // Inicializar el juego
+        const gameInstance = new Game();
+
+        // Event listeners
+        document.addEventListener('keydown', gameInstance.keyDownHandler.bind(gameInstance));
+        document.addEventListener('keyup', gameInstance.keyUpHandler.bind(gameInstance));
+
+        // Para móviles
+        canvas.addEventListener('touchmove', gameInstance.touchHandler.bind(gameInstance), { passive: false });
+
+        // Botón de sonido
+        document.getElementById('soundToggle').addEventListener('click', () => {
+            game.muted = !game.muted;
+            // Aquí iría la lógica para mutear/desmutear el audio
+        });
+    </script>
+</body>
+</html>
